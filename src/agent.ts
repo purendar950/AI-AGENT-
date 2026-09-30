@@ -1,11 +1,10 @@
-import type { AgentConfig, AgentState, AgentTool, LLMProvider } from "./types.js";
+import type { AgentConfig, AgentState, AgentTool, LLMMessage, LLMProvider } from "./types.js";
 
 const SYSTEM = `You are an autonomous software engineering agent.
-Work methodically. Inspect before editing. Prefer small, reversible changes.
-Use tools to inspect the repository, implement the requested change, and verify it.
-Never claim completion without verification.
-When a command fails, diagnose the concrete error and repair it.
-Keep the user task as the source of truth.`;
+Inspect before editing. Make small, reversible changes.
+Use tools to understand the repository, implement the task, and verify it.
+Never claim completion without verification. When a command fails, diagnose the concrete error and repair it.
+A task is complete only after relevant verification has passed.`;
 
 export class CodingAgent {
   constructor(
@@ -16,45 +15,58 @@ export class CodingAgent {
 
   async run(task: string): Promise<AgentState> {
     const state: AgentState = {
-      task,
-      phase: "understanding",
-      iteration: 0,
-      plan: [],
-      filesChanged: [],
-      history: [],
+      task, phase: "understanding", iteration: 0, plan: [], filesChanged: [], history: [],
     };
 
-    const messages = [{ role: "system" as const, content: SYSTEM }, { role: "user" as const, content: task }];
+    const messages: LLMMessage[] = [
+      { role: "system", content: SYSTEM },
+      { role: "user", content: task },
+    ];
+    let verified = false;
 
     for (let i = 1; i <= this.config.maxIterations; i++) {
       state.iteration = i;
-      state.phase = i === 1 ? "understanding" : state.lastError ? "debugging" : "executing";
+      state.phase = state.lastError ? "debugging" : (i === 1 ? "understanding" : "executing");
 
       const response = await this.provider.chat(messages, this.tools);
-      if (response.content) messages.push({ role: "assistant", content: response.content });
+      messages.push({
+        role: "assistant",
+        content: response.content || "",
+        toolCalls: response.toolCalls,
+      });
+      if (response.content) state.history.push({ role: "assistant", content: response.content });
 
       if (!response.toolCalls?.length) {
-        state.history.push({ role: "assistant", content: response.content });
-        if (/\b(completed|done|finished)\b/i.test(response.content) && i > 1) state.phase = "reviewing";
-        else state.phase = "planning";
-        if (state.phase === "reviewing") {
+        if (verified && /\b(completed|done|finished)\b/i.test(response.content)) {
           state.phase = "completed";
           return state;
         }
+        messages.push({
+          role: "user",
+          content: "Continue working. Use the available tools to implement and verify the task; do not stop with a status message.",
+        });
         continue;
       }
 
       for (const call of response.toolCalls) {
         const tool = this.tools.find(t => t.name === call.name);
         if (!tool) {
-          messages.push({ role: "tool", content: `Unknown tool: ${call.name}` });
+          state.lastError = `Unknown tool: ${call.name}`;
+          messages.push({ role: "tool", toolCallId: call.id, content: state.lastError });
           continue;
         }
+
         const result = await tool.execute(call.arguments);
         state.lastError = result.ok ? undefined : result.error;
+        if (result.ok && ["run_command"].includes(call.name) &&
+            /(?:test|build|typecheck|lint|check)/i.test(String(call.arguments.command ?? ""))) {
+          verified = true;
+          state.phase = "testing";
+        }
         messages.push({
           role: "tool",
-          content: JSON.stringify({ tool: call.name, ok: result.ok, output: result.output, error: result.error }),
+          toolCallId: call.id,
+          content: JSON.stringify({ ok: result.ok, output: result.output, error: result.error }),
         });
       }
     }
