@@ -28,17 +28,19 @@ export interface ToolResult {
 export interface AgentTool {
   name: string;
   description: string;
+  parameters: Record<string, unknown>;
   execute(args: Record<string, unknown>): Promise<ToolResult>;
 }
 
 export interface LLMMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  toolCallId?: string;
 }
 
 export interface LLMResponse {
   content: string;
-  toolCalls?: Array<{ name: string; arguments: Record<string, unknown> }>;
+  toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
 }
 
 export interface LLMProvider {
