@@ -35,7 +35,7 @@ export interface AgentTool {
 export interface LLMMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
-  toolCallId?: string;
+  toolCallId?: string;\n  toolCalls?: Array<{ id: string; name: string; arguments: Record<string, unknown> }>;
 }
 
 export interface LLMResponse {
