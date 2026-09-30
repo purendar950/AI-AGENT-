@@ -16,7 +16,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
       },
       body: JSON.stringify({
         model: this.model,
-        messages,
+        messages: messages.map(toApiMessage),
         temperature: 0.1,
         tools: tools.length ? tools.map(t => ({
           type: "function",
@@ -34,11 +34,41 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (!message) throw new Error("LLM returned no message");
 
     const toolCalls = (message.tool_calls ?? []).map((call: any) => ({
-      id: call.id,
-      name: call.function.name,
-      arguments: JSON.parse(call.function.arguments || "{}"),
+      id: String(call.id),
+      name: String(call.function?.name),
+      arguments: parseArguments(call.function?.arguments),
     }));
 
-    return { content: message.content ?? "", toolCalls };
+    return { content: String(message.content ?? ""), toolCalls };
   }
+}
+
+function parseArguments(raw: unknown): Record<string, unknown> {
+  if (!raw) return {};
+  if (typeof raw === "object") return raw as Record<string, unknown>;
+  try {
+    return JSON.parse(String(raw));
+  } catch {
+    throw new Error(`Model returned invalid tool arguments: ${String(raw)}`);
+  }
+}
+
+function toApiMessage(message: LLMMessage): Record<string, unknown> {
+  if (message.role === "assistant") {
+    return {
+      role: "assistant",
+      content: message.content || null,
+      ...(message.toolCalls?.length ? {
+        tool_calls: message.toolCalls.map(call => ({
+          id: call.id,
+          type: "function",
+          function: { name: call.name, arguments: JSON.stringify(call.arguments) },
+        })),
+      } : {}),
+    };
+  }
+  if (message.role === "tool") {
+    return { role: "tool", tool_call_id: message.toolCallId, content: message.content };
+  }
+  return { role: message.role, content: message.content };
 }
