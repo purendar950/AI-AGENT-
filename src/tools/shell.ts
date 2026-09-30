@@ -5,6 +5,11 @@ export function createShellTool(workspace: string, timeout: number): AgentTool {
   return {
     name: "run_command",
     description: "Run a development command inside the workspace. Use for install, build, test, lint and diagnostics.",
+    parameters: {
+      type: "object",
+      properties: { command: { type: "string", description: "Command to execute." } },
+      required: ["command"]
+    },
     execute: (args): Promise<ToolResult> => new Promise(resolve => {
       const command = String(args.command ?? "");
       if (!command.trim()) return resolve({ ok: false, output: "", error: "command is required" });
