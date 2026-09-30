@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import type { AgentTool, ToolResult } from "./types.js";
 
 export interface MCPServerConfig { name:string; command:string; args?:string[]; env?:Record<string,string>; }
@@ -14,7 +14,7 @@ export class MCPStdioClient {
   private buffer="";
   private nextId=1;
   private readonly pending=new Map<number,{resolve:(v:any)=>void;reject:(e:Error)=>void}>();
-  private readonly child;
+  private readonly child:ChildProcessWithoutNullStreams;
   constructor(config:MCPServerConfig){
     this.child=spawn(config.command,config.args??[],{stdio:["pipe","pipe","inherit"],env:{...process.env,...config.env}});
     this.child.stdout.on("data",(chunk:Buffer)=>this.onData(chunk.toString()));
@@ -44,7 +44,7 @@ export class MCPStdioClient {
     });
   }
   async initialize(){
-    await this.request("initialize",{protocolVersion:"2025-06-18",capabilities:{},clientInfo:{name:"ai-agent",version:"0.2.0"}});
+    await this.request("initialize",{protocolVersion:"2024-11-05",capabilities:{},clientInfo:{name:"ai-agent",version:"0.2.0"}});
     this.child.stdin.write(JSON.stringify({jsonrpc:"2.0",method:"notifications/initialized",params:{}})+"\n");
   }
   async close(){this.child.kill();this.rejectAll(new Error("MCP client closed"))}
