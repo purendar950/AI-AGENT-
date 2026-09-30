@@ -43,9 +43,14 @@ export class MCPStdioClient {
       this.child.stdin.write(JSON.stringify({jsonrpc:"2.0",id,method,params})+"\n");
     });
   }
+  async initialize(){
+    await this.request("initialize",{protocolVersion:"2025-06-18",capabilities:{},clientInfo:{name:"ai-agent",version:"0.2.0"}});
+    this.child.stdin.write(JSON.stringify({jsonrpc:"2.0",method:"notifications/initialized",params:{}})+"\n");
+  }
   async close(){this.child.kill();this.rejectAll(new Error("MCP client closed"))}
   private rejectAll(error:Error){for(const {reject} of this.pending.values())reject(error);this.pending.clear()}
   async listTools():Promise<AgentTool[]>{
+    await this.initialize();
     const result=await this.request("tools/list");
     return (result?.tools??[]).map((spec:any)=>({
       name:"mcp_"+String(spec.name),
