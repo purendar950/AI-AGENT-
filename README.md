@@ -1,93 +1,91 @@
-# AI-AGENT
+# AI Agent
 
-A self-hosted autonomous software-engineering agent. Give it a repository task and it can inspect the codebase, plan work, edit files, execute development commands, run verification, diagnose failures, repair them, review Git changes, and persist its run state.
+Autonomous coding agent for real repository work: inspect, plan, edit, test, diagnose, repair, and review.
+
+## Capabilities
+
+- OpenAI-compatible provider with configurable API key, base URL, and model.
+- Safe repository file operations and targeted patches.
+- Git status, diff, history, and checkpoints.
+- Explicit test, typecheck, build, and full CI verification tools.
+- Lightweight source symbol indexing and search.
+- Browser smoke checks with Playwright.
+- Persistent execution state in .agent/state.json.
+- Local dashboard on 127.0.0.1:8787.
+- MCP stdio client with initialization and tool discovery.
+- Strict shell policy, timeouts, and destructive-command blocking.
+- GitHub Actions workflow for issue/manual task → agent → branch → pull request.
+
+## Local setup
+
+Install Node.js 22+, copy .env.example to .env, and configure:
+
+    AI_API_KEY=
+    AI_BASE_URL=https://api.openai.com/v1
+    AI_MODEL=
+
+Then:
+
+    npm install
+    npm start -- "Fix the failing tests and verify the build"
+
+Dashboard:
+
+    npm run server
+
+## MCP
+
+MCP_SERVERS accepts a JSON array of trusted stdio server configurations. Discovered tools are exposed to the agent with an mcp_ prefix.
+
+Example:
+
+    MCP_SERVERS=[{"name":"example","command":"npx","args":["-y","your-mcp-server"]}]
+
+MCP servers execute with the same OS permissions as the agent, so only configure trusted servers.
+
+## GitHub autonomous repair
+
+The workflow at .github/workflows/agent-repair.yml supports:
+
+1. Add the ai-fix label to an issue, or manually dispatch a task.
+2. GitHub Actions checks out the repository and installs dependencies.
+3. The coding agent inspects, edits, tests, diagnoses failures, and repairs them.
+4. If changes exist, the workflow creates an ai-agent/* branch and pull request.
+5. Normal CI remains the gate; the workflow does not auto-merge.
+
+Required repository secrets:
+
+- AI_API_KEY
+- AI_MODEL
+- Optional AI_BASE_URL
+
+## Development
+
+    npm run typecheck
+    npm test
+    npm run build
 
 ## Architecture
 
-```
-CLI / Local Web UI
-       |
-   Agent Core
-       |
-  OpenAI-compatible LLM
-       |
-  Tool Engine
-  |  |  |  |  |  |
-files patch shell repo git browser
-       |
-   Workspace
-       |
-test / build / lint / UI verification
-       |
-diagnose -> repair -> verify
-```
+    CLI / Dashboard / GitHub Actions
+                 |
+             CodingAgent
+                 |
+       OpenAI-compatible LLM
+                 |
+             Tool Engine
+       / Files / Patch / Search
+       / Repository / Symbols
+       / Shell / Verification
+       / Git / Browser
+       / MCP stdio
+                 |
+              Workspace
+                 |
+       Test -> Diagnose -> Repair -> Review
 
-## Included now
+## Security
 
-- OpenAI-compatible provider with custom `AI_BASE_URL`
-- Model selection through `AI_MODEL`
-- Iterative autonomous tool loop with bounded iterations/tool calls
-- Repository structure inspection
-- Safe workspace file reads/writes/search
-- Exact `apply_patch` editing
-- Shell execution with strict safety blocks and timeouts
-- Git status, diff, checkpoints and history
-- Browser smoke testing through Playwright
-- Persistent `.agent/state.json` run state
-- Local web dashboard at `localhost:8787`
-- GitHub Actions typecheck/test/build pipeline
-- Vitest foundation tests
+Workspace paths are constrained, shell commands have timeouts, strict mode blocks destructive patterns, browser checks accept only HTTP(S), and secrets are kept in environment variables.
 
-## Quick start
-
-```bash
-npm install
-cp .env.example .env
-# edit AI_API_KEY, AI_BASE_URL and AI_MODEL
-npm run typecheck
-npm test
-npm start -- "Fix the failing tests in this repository"
-```
-
-For the dashboard:
-
-```bash
-npm run server
-# open http://localhost:8787
-```
-
-For browser verification, install Playwright's browser once if needed:
-
-```npx playwright install chromium```
-
-## Provider configuration
-
-Any provider exposing an OpenAI-compatible `/chat/completions` endpoint can be used:
-
-- OpenAI
-- compatible hosted providers
-- local gateways
-- self-hosted inference servers
-
-Set:
-
-```
-AI_API_KEY=...
-AI_BASE_URL=https://your-provider.example/v1
-AI_MODEL=your-model
-```
-
-## Safety
-
-The agent is intentionally bounded. Commands run inside the configured workspace, dangerous command patterns are blocked in strict mode, tool calls and iterations have limits, and the agent is instructed not to expose secrets. Review or checkpoint changes before allowing autonomous work on important repositories.
-
-## Roadmap
-
-The core coding agent is implemented. Remaining platform work is intentionally separated from the coding engine:
-
-1. GitHub-native issue → branch → PR → CI repair automation
-2. MCP server/client adapters
-3. Rich multi-agent planner/coder/debugger/reviewer roles
-4. Tree-sitter symbol indexing and semantic retrieval
-5. Android embedded runtime/WebView packaging
-6. Authentication, permissions and remote multi-user deployment
+Android packaging, remote authentication, semantic/vector retrieval, and richer multi-agent planning remain optional product extensions rather than prerequisites for the core autonomous coding runtime.
