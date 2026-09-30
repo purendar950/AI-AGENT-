@@ -20,7 +20,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
         temperature: 0.1,
         tools: tools.length ? tools.map(t => ({
           type: "function",
-          function: { name: t.name, description: t.description, parameters: { type: "object", properties: {} } }
+          function: { name: t.name, description: t.description, parameters: t.parameters }
         })) : undefined,
       }),
     });
@@ -34,6 +34,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     if (!message) throw new Error("LLM returned no message");
 
     const toolCalls = (message.tool_calls ?? []).map((call: any) => ({
+      id: call.id,
       name: call.function.name,
       arguments: JSON.parse(call.function.arguments || "{}"),
     }));
