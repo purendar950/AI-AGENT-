@@ -2,6 +2,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { AgentTool, ToolResult } from "../types.js";
 
+const stringParam = (description: string) => ({
+  type: "string", description,
+});
+
 export function createFileTools(workspace: string): AgentTool[] {
   const safe = (p: string) => {
     const root = path.resolve(workspace);
@@ -17,21 +21,25 @@ export function createFileTools(workspace: string): AgentTool[] {
     {
       name: "list_files",
       description: "List files and directories in the workspace.",
+      parameters: { type: "object", properties: { path: stringParam("Relative directory path; defaults to .") } },
       execute: async ({ path: p = "." }) => result(fs.readdir(safe(String(p)), { withFileTypes: true }).then(xs => xs.map(x => x.isDirectory() ? `${x.name}/` : x.name).join("\n"))),
     },
     {
       name: "read_file",
       description: "Read a UTF-8 text file from the workspace.",
+      parameters: { type: "object", properties: { path: { ...stringParam("Relative file path"), }, }, required: ["path"] },
       execute: async ({ path: p }) => result(fs.readFile(safe(String(p)), "utf8")),
     },
     {
       name: "write_file",
       description: "Write or replace a UTF-8 text file in the workspace.",
+      parameters: { type: "object", properties: { path: stringParam("Relative file path"), content: stringParam("Complete UTF-8 file content") }, required: ["path", "content"] },
       execute: async ({ path: p, content }) => result(fs.mkdir(path.dirname(safe(String(p))), { recursive: true }).then(() => fs.writeFile(safe(String(p)), String(content), "utf8")).then(() => "File written.")),
     },
     {
       name: "search_files",
       description: "Search text across files using a simple recursive scan.",
+      parameters: { type: "object", properties: { query: stringParam("Text to search for") }, required: ["query"] },
       execute: async ({ query }) => result(searchRecursive(workspace, String(query))),
     },
   ];
@@ -41,7 +49,7 @@ async function searchRecursive(root: string, query: string): Promise<string> {
   const hits: string[] = [];
   async function walk(dir: string) {
     for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-      if (["node_modules", ".git", "dist"].includes(entry.name)) continue;
+      if (["node_modules", ".git", "dist", ".agent"].includes(entry.name)) continue;
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) await walk(full);
       else {
