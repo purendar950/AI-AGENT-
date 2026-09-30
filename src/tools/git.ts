@@ -9,7 +9,17 @@ export function createGitTools(workspace: string): AgentTool[] {
     });
   });
   return [
-    { name: "git_status", description: "Show Git working tree status.", execute: () => run("git status --short --branch") },
-    { name: "git_diff", description: "Show the current Git diff.", execute: () => run("git diff --") },
+    {
+      name: "git_status",
+      description: "Show Git working tree status.",
+      parameters: { type: "object", properties: {} },
+      execute: () => run("git status --short --branch")
+    },
+    {
+      name: "git_diff",
+      description: "Show the current Git diff.",
+      parameters: { type: "object", properties: {} },
+      execute: () => run("git diff --")
+    },
   ];
 }
